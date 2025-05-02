@@ -35,7 +35,7 @@ async def daily_reminder(context: CallbackContext):
     if datetime.now().weekday() != 6:
         await context.bot.send_message(
             chat_id=GROUP_CHAT_ID,
-            text="Mọi người ơi nhớ điền kết quả công việc ngày hôm qua vào sheet tiến độ, và cuối ngày nhớ báo cáo bitrix nhé"
+            text="Mọi người ơi nhớ điền kết quả công việc ngày hôm nay vào sheet tiến độ, và cuối ngày nhớ báo cáo bitrix nhé"
         )
 
 # Chỉ trả lời nếu bot được mention
