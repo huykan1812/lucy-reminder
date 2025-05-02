@@ -8,7 +8,7 @@ from flask import Flask
 from datetime import datetime
 import requests
 from dotenv import load_dotenv
-from concurrent.futures import ThreadPoolExecutor
+from apscheduler.executors.pool import ThreadPoolExecutor
 
 load_dotenv()
 
@@ -64,7 +64,7 @@ def auto_ping():
         logging.error(f"Autoping failed: {e}")
 
 executors = {
-    'default': ThreadPoolExecutor(10)
+    'default': ThreadPoolExecutor(max_workers=10)
 }
 scheduler = BackgroundScheduler(executors=executors, timezone="Asia/Ho_Chi_Minh")
 scheduler.add_job(auto_ping, "interval", minutes=5)
