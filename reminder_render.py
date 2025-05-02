@@ -62,6 +62,10 @@ def auto_ping():
     except Exception as e:
         logging.error(f"Autoping failed: {e}")
 
+executors = {
+    'default': ThreadPoolExecutor(10)
+}
+scheduler = BackgroundScheduler(executors=executors, timezone="Asia/Ho_Chi_Minh")
 scheduler.add_job(auto_ping, "interval", minutes=5)
 scheduler.start()
 
