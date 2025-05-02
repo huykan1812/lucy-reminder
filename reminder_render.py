@@ -1,74 +1,54 @@
 import os
-import threading
-from datetime import datetime
-from dotenv import load_dotenv
+import requests
 from flask import Flask
-from telegram import Update
-from telegram.ext import (
-    ApplicationBuilder,
-    ContextTypes,
-    MessageHandler,
-    filters,
-)
-from openai import OpenAI
 from apscheduler.schedulers.background import BackgroundScheduler
+from datetime import datetime
+from telegram import Update
+from telegram.ext import ApplicationBuilder, ContextTypes, MessageHandler, filters
+from dotenv import load_dotenv
 
-# Load biến môi trường
 load_dotenv()
-TOKEN = os.getenv("TELEGRAM_TOKEN")
+
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-# Flask để giữ bot online (autoping)
 app = Flask(__name__)
-@app.route('/')
+
+def auto_ping():
+    requests.get("https://your-render-url.onrender.com/")
+
+@app.route("/")
 def home():
-    return "Lucy bot is alive!"
+    return "Lucy reminder bot is running!"
 
-def run_flask():
-    app.run(host='0.0.0.0', port=8080)
+async def send_reminder(context: ContextTypes.DEFAULT_TYPE):
+    message = "🔔 Mọi người ơi nhớ điền kết quả công việc ngày hôm qua vào sheet tiến độ, và cuối ngày nhớ báo cáo bitrix nhé!"
+    await context.bot.send_message(chat_id=CHAT_ID, text=message)
 
-# Tự động nhắn tin mỗi sáng 8h30 từ thứ 2 đến thứ 7
-async def send_daily_reminder(application):
-    now = datetime.now().strftime("%H:%M %d/%m/%Y")
-    text = f"📢 [{now}] Mọi người ơi nhớ điền kết quả công việc ngày hôm qua vào sheet tiến độ, và cuối ngày nhớ báo cáo bitrix nhé!"
-    await application.bot.send_message(chat_id=CHAT_ID, text=text)
-
-# Trả lời khi được @mention
 async def handle_mention(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = update.message.text
-    bot_username = context.bot.username
-
-    if update.message.chat.type != "private" and f"@{bot_username}" not in text:
-        return  # Không phản hồi nếu không được mention
-
-    user_id = str(update.effective_user.id)
-    messages = [
-        {"role": "system", "content": "Bạn là Lucy, một Trợ Lý cá nhân chuyên hỗ trợ báo cáo công việc, xưng Em với người dùng là Anh."},
-        {"role": "user", "content": text}
-    ]
-    try:
-        response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=messages,
-            temperature=0.7,
-        )
-        reply = response.choices[0].message.content
-    except Exception as e:
-        reply = f"Lỗi: {e}"
-    await update.message.reply_text(reply)
+    if update.message and update.message.entities:
+        for entity in update.message.entities:
+            if entity.type == "mention":
+                bot_username = (await context.bot.get_me()).username
+                mention_text = update.message.text[entity.offset: entity.offset + entity.length]
+                if mention_text == f"@{bot_username}":
+                    await update.message.reply_text("Lucy đã ghi nhận, anh cần hỗ trợ gì thêm không?")
+                    break
 
 if __name__ == "__main__":
-    threading.Thread(target=run_flask).start()
-    app_bot = ApplicationBuilder().token(TOKEN).build()
+    app_scheduler = BackgroundScheduler()
+    app_scheduler.add_job(auto_ping, "interval", minutes=5)
+    app_scheduler.start()
 
-    # Handler: chỉ trả lời khi được @mention
-    app_bot.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_mention))
+    bot_app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
+    bot_app.add_handler(MessageHandler(filters.TEXT & filters.ChatType.GROUPS, handle_mention))
 
-    # Scheduler: nhắc mỗi sáng 8h30 từ T2 đến T7
-    scheduler = BackgroundScheduler()
-    scheduler.add_job(send_daily_reminder, "cron", day_of_week="mon-sat", hour=17, minute=15, args=[app_bot])
-    scheduler.start()
+    bot_app.job_queue.run_daily(
+        send_reminder,
+        time=datetime.strptime("17:15", "%H:%M").time(),
+        days=(0, 1, 2, 3, 4, 5)
+    )
 
-    print("✅ Lucy bot đang hoạt động với nhắc việc + mention filter!")
-    app_bot.run_polling()
+    import threading
+    threading.Thread(target=bot_app.run_polling, daemon=True).start()
+    app.run(host="0.0.0.0", port=8080)
