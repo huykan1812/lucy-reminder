@@ -9,6 +9,7 @@ from datetime import datetime
 import requests
 from dotenv import load_dotenv
 from apscheduler.executors.pool import ThreadPoolExecutor
+from telegram.ext import Application
 
 load_dotenv()
 
@@ -31,12 +32,15 @@ async def daily_reminder(context: CallbackContext):
         )
 
 # Tạo job queue sau khi ứng dụng khởi tạo
-async def on_startup(app):
+async def on_startup(app: Application):
     app.job_queue.run_daily(
         callback=daily_reminder,
         time=datetime.strptime("17:15", "%H:%M").time(),
-        days=(0, 1, 2, 3, 4, 5)
+        days=(0, 1, 2, 3, 4, 5),
     )
+
+app = ApplicationBuilder().token(TELEGRAM_TOKEN).post_init(on_startup).build()
+
 
 # Chỉ phản hồi tin nhắn có mention bot
 async def handle_mentions(update: Update, context: ContextTypes.DEFAULT_TYPE):
